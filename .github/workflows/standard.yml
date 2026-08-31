@@ -15,8 +15,13 @@ jobs:
           git config --global user.email "email@filipigustavo.com.br"
           git config --global user.name "Filipi Gustavo"
       - name: Install dependencies
-        run: |
-          npm ci
+        run: npm ci
+      - name: Build library
+        run: npm run pack
+      - name: Build demo
+        run: npm run build
+      - name: Test
+        run: npm test
       - name: Deploy with gh-pages
         run: |
           git remote set-url origin https://git:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git

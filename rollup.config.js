@@ -32,7 +32,8 @@ const config = [
       }),
       commonjs(),
       typescript({
-        rootDir: "src/lib"
+        rootDir: 'src/lib',
+        exclude: ['**/__tests__/**', '**/*.test.ts', '**/*.test.tsx'],
       }),
       postcss(),
       terser()

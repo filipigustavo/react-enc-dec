@@ -1,177 +1,196 @@
-# React Enc-Dec
+# @filipigustavo/react-enc-dec
 
-A simple library to hide values in localStorage easily.
+React hook to hide values in `localStorage` using AES encryption and a persisted security hash.
 
-See this lib in action [here](https://filipigustavo.github.io/react-enc-dec/)
+**Live demo:** [filipigustavo.github.io/react-enc-dec](https://filipigustavo.github.io/react-enc-dec/)
 
-## Installing
+## Overview
 
-In your project's terminal:
+`useHash` creates a namespace in `localStorage` where values are encrypted before storage. A security hash is generated on first use, persisted under a `security` key, and transformed into the AES passphrase by your app logic. User keys are tracked in a reactive `index` array.
+
+This library **obfuscates** data in the browser. It does not protect against XSS, DevTools, or malicious extensions. Do not use it for secrets that require server-side protection.
+
+## Install
 
 ```bash
-$ npm i @filipigustavo/react-enc-dec
+npm install @filipigustavo/react-enc-dec
 ```
 
-## Usage
+**Peer dependencies:** `react` and `react-dom` ^19.x
 
-The `useHash` hook returns `enc`, `dec`, `remove`, `renew` and `clear` methods, in addition to `index` variable.
+## Quick start
 
-Use it to save encrypted data and get it from localStorage.
-
-useHash generates two basic keys in your localStorage for each instance you create:
-
-- index ([globalPrefix]\_[prefix]\_index)
-- security ([globalPrefix]\_[prefix]\_security)
-
-### Params
-
-useHash hook accepts a configuration object with:
-
-#### `prefix?: string`
-
-By default useHash uses `""`.
-
-#### `globalPrefix?: string`
-
-By default useHash uses `"ed"`.
-
-#### `Generator?: AbstractGenerator<H>`
-
-By default useHash uses internal `HashGenerator` class.
-
-#### `notAllowedKeyCallback?: (err: Error) => void`
-
-By default useHash use a function with `alert(err)`.
-
-**All this parameters are optional.**
-
-### Returns
-
-#### `enc: (key: string, value: any) => void`
-
-It's used to encrypt data and save in localStorage. `enc('my-key', 'my-value')`
-
-In localStorage, the generated key is `[globalPrefix]_[prefix]_[key]`
-
-#### `dec: (key: string) => string`
-
-It's used to get decrypted value from localStorage. `const myValue = dec('my-key')`
-
-#### `remove: (key: string) => void`
-
-It's used to remove value from localStorage. `remove('my-key')`
-
-#### `renew: () => void`
-
-It's used to renew the security hash and re-encrypt all the values related to this instance. `renew()`
-
-#### `clear: () => void`
-
-It's used to erase instance's index and remove all related keys. `clear()`
-
-#### `index: string`
-
-This variable can be used by you to control all the variables from instance.
-
-```jsx
-<>
-  {index.map(item => <button onClick={() => remove(item)}>Remove<button>)}
-</>
-```
-
-- You can have one or more instances in your application using `globalPrefix` and `prefix` in `useHash`.
-- You can change the way `useHash` generates security hash using `Generator` and passing your own `AbstractGenerator<H>` class.
-- You can do whatever you want with the error related to `NOT_ALLOWED_KEY`. Not allowed keys is `index` and `security`.
-
-## Example: simple usage
-
-You can see this lib in action with advanced examples [here](https://filipigustavo.github.io/react-enc-dec/)
-
-```jsx
+```tsx
 import { useState } from 'react'
 import { useHash } from '@filipigustavo/react-enc-dec'
 
 function App() {
-  const { enc, dec } = useHash({})
+  const { enc, dec, index, remove } = useHash({ prefix: 'app' })
   const [raw, setRaw] = useState('')
   const [decrypted, setDecrypted] = useState('')
-  
-  const handleEnc = () => enc('local-storage-key', raw)
 
-  const handleDec = () => {
-    const val = dec('local-storage-key')
-    setDecrypted(val)
+  const handleEncrypt = () => enc('token', raw)
+
+  const handleDecrypt = () => {
+    const result = dec('token')
+    if (result.status === 'ok') {
+      setDecrypted(result.value)
+    }
   }
 
   return (
     <div>
-      <h1>Enc/Dec</h1>
-
-      <div>
-        <input value={raw} onChange={(ev) => setRaw(ev.target.value)} />
-        <button onClick={handleEnc}>Encrypt data</button>
-        <button onClick={handleDec}>Decrypt data</button>
-        <br />
-        Decrypted Value: {decrypted}
-      </div>
+      <input value={raw} onChange={(e) => setRaw(e.target.value)} />
+      <button type="button" onClick={handleEncrypt}>Encrypt</button>
+      <button type="button" onClick={handleDecrypt}>Decrypt</button>
+      <p>Decrypted: {decrypted}</p>
+      <ul>
+        {index.map((key) => (
+          <li key={key}>
+            {key}
+            <button type="button" onClick={() => remove(key)}>Remove</button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
-
-export default App
 ```
 
-If you want another namespaced instance, just pass a `prefix` in configuration object of `useHash`. You can have so many instances you want combining `globalPrefix` and (or just) `prefix`.
+## How it works
 
-```js
-// default usage
-const { enc, dec } = useHash({})
-// using with a namespace
-const { enc: enc2, dec: dec2 } = useHash({ prefix: 'my_prefix' })
-```
+1. On init, `useHash` reads or creates hash parts via `Generator.generateHashParts()`.
+2. Hash parts are persisted in `localStorage` under `[globalPrefix]_[prefix]_security`.
+3. `Generator.handleHash(parts)` derives the AES passphrase (not stored directly).
+4. `enc` encrypts values under `[globalPrefix]_[prefix]_[yourKey]`.
+5. User key names are stored in `[globalPrefix]_[prefix]_index` and exposed as reactive `index: string[]`.
 
-**IMPORTANT**: Don't forget to always use the same `prefix` and `globalPrefix` to get data from this new instance.
+## API reference
 
-## Changing the way `useHash` generates security hash
+### `useHash(params?)`
 
-To do it, you should make a class that extends `AbstractGenerator` with `generateHashParts` and `handleHash` methods.
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `globalPrefix` | `string` | `"ed"` | Prefix for all keys in this namespace |
+| `prefix` | `string` | `""` | Additional namespace segment |
+| `Generator` | `AbstractGenerator<H>` | `HashGenerator` | Custom hash generator class |
+| `onError` | `(error, context) => void` | no-op | Error handler |
 
-`AbstractGenerator` accepts a Generic type. `generateHashParts` should return the same type declared in the class and `handleHash` accepts a parameter with these type and always returns a `string`.
+**`onError` contexts:** `key`, `security`, `index`, `decrypt`, `renew`
 
-#### `AbstractGenerator<H>`
+### Returns
 
-This is the base class that works with hashs. You should extend it and implement `generateHashParts` and `handleHash` methods.
+| Property | Type | Description |
+|----------|------|-------------|
+| `index` | `string[]` | Reactive list of user keys in this namespace |
+| `enc` | `(key, value) => void` | Encrypt and store a value |
+| `dec` | `(key) => TDecResult` | Decrypt a value |
+| `remove` | `(key) => void` | Remove one user key and its value |
+| `renew` | `() => void` | Regenerate security hash and re-encrypt all values |
+| `clear` | `() => void` | Remove all user values and clear `index`; keeps `security` |
 
-#### `generateHashParts(): H`
+### `enc(key, value)`
 
-This method generates the base to make the real hash. This value will be persisted in localStorage.
+- `value` accepts `string | number | boolean | null | object | array`
+- Non-string values are stored via `JSON.stringify`
+- Reserved user keys: `index`, `security` (exact match)
 
-#### `handleHash(hash: H): string`
-
-This method takes the value generated by `generateHashParts` and transforms it in the real hash used to encrypt/decrypt data. This value WILL NOT be persisted in localStorage.
+### `dec(key)` → `TDecResult`
 
 ```ts
-import AbstractGenerator from '@filipigustavo/react-enc-dec'
+type TDecResult =
+  | { status: 'ok'; value: string }
+  | { status: 'missing' }
+  | { status: 'error'; error: Error }
+```
 
-class NewGenerator extends AbstractGenerator<string[]> {
-  generateHashParts: TGenerateHashParts<string[]> = () => {
-    const randomNum = () => `${Math.floor(Math.random() * 10)}`
+```ts
+const result = dec('token')
+switch (result.status) {
+  case 'ok':
+    console.log(result.value)
+    break
+  case 'missing':
+    console.log('Not found')
+    break
+  case 'error':
+    console.error(result.error)
+}
+```
 
-    return [randomNum(), randomNum(), randomNum()]
-  }
+### Multiple namespaces
 
-  handleHash: THandleHash<string[]> = (localhashs: string[]) => {
-    const key: string = localhashs.sort().join('')
+```ts
+const defaultNs = useHash({})
+const appNs = useHash({ prefix: 'my-app' })
+const customNs = useHash({ globalPrefix: 'advanced', prefix: 'vault' })
+```
 
-    return key
-  }
+Always use the same `globalPrefix` and `prefix` to read data from a namespace.
+
+## Custom `Generator`
+
+Extend `AbstractGenerator<H>` and implement:
+
+| Method | Description |
+|--------|-------------|
+| `generateHashParts(): H` | Creates parts persisted in `security` |
+| `handleHash(parts: H): string` | Pure function that derives the AES passphrase |
+
+```ts
+import {
+  AbstractGenerator,
+  type TGenerateHashParts,
+  type THandleHash,
+} from '@filipigustavo/react-enc-dec'
+
+class MyGenerator extends AbstractGenerator<string[]> {
+  generateHashParts: TGenerateHashParts<string[]> = () => ['1', '2', '3']
+
+  handleHash: THandleHash<string[]> = (parts) => [...parts].sort().join('')
 }
 
-export default NewGenerator
+const { enc, dec } = useHash({ Generator: MyGenerator })
 ```
 
-Now you can use your new hash class in useHash hook object configuration:
+## Security limitations
 
-```js
-const { enc, dec } = useHash({ Generator: NewGenerator })
+- Data is hidden from casual `localStorage` inspection, not from script access.
+- Anyone with access to persisted hash parts and your `handleHash` logic can decrypt values.
+- XSS in your app can read encrypted data and hash parts.
+- `renew` in one tab updates `security` for other tabs via the `storage` event.
+
+## Migration from 0.1.x
+
+| 0.1.x | 0.2.0 |
+|-------|-------|
+| `index: string` (storage key name) | `index: string[]` (user keys, reactive) |
+| `dec(key): string` | `dec(key): TDecResult` |
+| `notAllowedKeyCallback` | `onError(error, context)` |
+| `enc(value: string)` | `enc(value: TStorageValue)` with auto serialization |
+| Default errors via `alert()` | Default `onError` is silent |
+
+**Before:**
+
+```ts
+const { index, dec } = useHash({ notAllowedKeyCallback: (e) => alert(e) })
+const keys = JSON.parse(localStorage.getItem(index) ?? '[]')
+const value = dec('token')
 ```
+
+**After:**
+
+```ts
+const { index, dec } = useHash({
+  onError: (error, context) => console.error(context, error),
+})
+index.map((key) => ...)
+const result = dec('token')
+if (result.status === 'ok') {
+  console.log(result.value)
+}
+```
+
+## License
+
+MIT

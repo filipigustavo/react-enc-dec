@@ -1,16 +1,30 @@
-import { useState } from "react"
+import { useState } from 'react'
+
+import type { TDec } from './lib'
 
 type TProps = {
-  onGet: (key: string) => void
+  onGet: TDec
+}
+
+const formatResult = (result: ReturnType<TDec>): string => {
+  if (result.status === 'ok') {
+    return `Decrypted: ${result.value}`
+  }
+
+  if (result.status === 'missing') {
+    return 'Key not found in localStorage'
+  }
+
+  return `Error: ${result.error.message}`
 }
 
 const Getter = ({ onGet }: TProps) => {
   const [key, setKey] = useState<string>('')
 
-  const handleSubmit = (event: any) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const value = onGet(key)
-    globalThis.alert(`Decrypted: ${value}`)
+    const result = onGet(key)
+    globalThis.alert(formatResult(result))
   }
 
   return (
@@ -23,7 +37,12 @@ const Getter = ({ onGet }: TProps) => {
 
           <div className="col-12 mb-3">
             <label className="form-label">Key (same one used to save data)</label>
-            <input required placeholder='Ex.: local-key' className="form-control" onChange={(event) => setKey(event.target.value)} />
+            <input
+              required
+              placeholder="Ex.: local-key"
+              className="form-control"
+              onChange={(event) => setKey(event.target.value)}
+            />
           </div>
 
           <div className="col-12">
