@@ -1,4 +1,4 @@
-import { TGenerateHashParts, THandleHash } from './lib'
+import type { TGenerateHashParts, THandleHash } from './lib'
 import AbstractGenerator from './lib/AbstractGenerator'
 
 class NewGenerator extends AbstractGenerator<string[]> {
@@ -9,9 +9,7 @@ class NewGenerator extends AbstractGenerator<string[]> {
   }
 
   handleHash: THandleHash<string[]> = (localhashs: string[]) => {
-    const key: string = localhashs.sort().join('')
-
-    return key
+    return [...localhashs].sort().join('')
   }
 }
 
